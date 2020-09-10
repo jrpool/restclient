@@ -1,0 +1,23 @@
+{
+  "name": "restclient",
+  "version": "1.0.0",
+  "description": "Experiments in consumption of REST APIs",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jrpool/restclient.git"
+  },
+  "keywords": [
+    "API",
+    "REST"
+  ],
+  "author": "Jonathan Pool",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jrpool/restclient/issues"
+  },
+  "homepage": "https://github.com/jrpool/restclient#readme"
+}
