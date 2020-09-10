@@ -19,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/jrpool/restclient/issues"
   },
-  "homepage": "https://github.com/jrpool/restclient#readme"
+  "homepage": "https://github.com/jrpool/restclient#readme",
+  "dependencies": {
+    "axios": "*"
+  }
 }
