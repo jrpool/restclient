@@ -20,5 +20,7 @@
     "url": "https://github.com/jrpool/restclient/issues"
   },
   "homepage": "https://github.com/jrpool/restclient#readme",
-  "dependencies": {}
+  "dependencies": {
+    "axios": "*"
+  }
 }
