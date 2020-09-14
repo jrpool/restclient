@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/jrpool/restclient#readme",
   "dependencies": {
-    "axios": "*"
+    "axios": "*",
+    "dotenv": "*"
   }
 }
