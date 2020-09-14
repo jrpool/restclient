@@ -1,18 +1,25 @@
 require('dotenv').config();
 const rally = require('rally');
-const path = require('path');
-const axios = require('axios').default;
-const protocol = 'https';
-const urlBase = 'rally1.rallydev.com/slm/webservice/v2.0';
-const urlObj = 'user';
-const urlID = '123';
-const key = process.env.key;
-const url = `${protocol}://${path.join(urlBase, urlObj, urlID)}?key=${key}`;
-console.log(`About to query ${url}`);
-axios.get(url)
+// Create a Rally REST API instance, using env user, pw, and API key.
+const restAPI = rally({
+    requestOptions: {
+        headers: {
+            'X-RallyIntegrationName': process.env.RALLYINTEGRATIONNAME,
+            'X-RallyIntegrationVendor': process.env.RALLYINTEGRATIONVENDOR,
+            'X-RallyIntegrationVersion': process.env.RALLYINTEGRATIONVERSION
+        }
+    }
+});
+// const refUtils = rally.util.ref;
+// const queryUtils = rally.util.query;
+const ref = '/user/123';
+restAPI.get({
+    ref,
+    fetch: ['Name']
+})
 .then(
-    response => {
-        console.log(response.data);
+    result => {
+        console.log(result.Object);
     },
     error => {
         console.log(error.message);
