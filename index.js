@@ -2,13 +2,12 @@
 require('dotenv').config();
 const myName = process.env.RALLY_USERNAME;
 console.log(`The .env file says I am ${myName}`);
-const myRef = '/user';
 // Import the Rally module.
 const rally = require('rally');
 const queryUtils = rally.util.query;
 // Temporary initialization of the root of the tree.
 const mainRootOID = '435404235956';
-const mainRootRef = `/HierarchicalRequirement/${mainRootOID}`;
+const mainRootShortRef = `/HierarchicalRequirement/${mainRootOID}`;
 // Initialize the request options.
 const requestOptions = {
     headers: {
@@ -24,6 +23,36 @@ const requestOptions = {
 const restAPI = rally({
     requestOptions
 });
+// Function to return my ref.
+const getMyRef = () => {
+    return restAPI.query({
+        type: 'user',
+        query: queryUtils.where('UserName', '=', myName)
+    })
+    .then(me => {
+        const myRef = me.Results[0]._ref;
+        console.log(`My ref is ${myRef}.`);
+        return myRef;
+    })
+    .catch(error => {
+        console.log(error.message);
+    });
+};
+const badGetMyRef = () => {
+    return restAPI.get({
+        ref: myShortRef
+    })
+    .then(
+        me => {
+            const myRef = me._ref;
+            console.log(`My ref is ${myRef}`);
+            return myRef;
+        },
+        error => {
+            throw `Error getting my ref: ${error.message}`;
+        }
+    );
+};
 /*
     Function to return a reference to the owner of the specified
     user story.
@@ -33,7 +62,16 @@ const getOwnerOf = storyRef => {
         ref: storyRef,
         fetch: ['Owner']
     })
-    .then(result => result.Object.Owner._ref);
+    .then(
+        result => {
+            const ownerRef = result.Object.Owner._ref;
+            console.log(`The owner’s ref is ${ownerRef}`);
+            return ownerRef;
+        },
+        error => {
+            throw `Error getting user story’s owner: ${error.message}`;
+        }
+    );
 };
 /*
     Function to make the specified user the owner of the specified
@@ -47,24 +85,29 @@ const setOwnerOf = (userRef, storyRef) => restAPI.update({
     Function to return references to the child user stories of
     the specified user story.
 */
-const getChildRefsOf = storyRef => {
+const getChildrenOf = storyRef => {
     return restAPI.get({
         ref: storyRef,
         fetch: ['Children']
     })
     .then(
-        childrenRef => restAPI.get({
-            ref: childrenRef,
-            fetch: ['_ref']
-        })
-        .then(
-            children => children.Object.Results.map(result => result._ref),
+        childrenRef => {
+            restAPI.get({
+                ref: childrenRef,
+                fetch: ['_ref']
+            })
+            .then(
+                children => children.Object.Results.map(result => result._ref),
+                error => {
+                    throw `Error getting children: ${error.message}`
+                }
+            ),
             error => {
-                throw `Error getting children: ${error.message}`
+                throw `Error getting child OIDs: ${error.message}.`;
             }
-        ),
+        },
         error => {
-            throw `Error getting child OIDs: ${error.message}.`;
+            throw `Error getting ref of children: ${error.message}`;
         }
     );
 };
@@ -78,17 +121,23 @@ const setOwnerOfTreeOf = (userRef, storyRef) => {
         if (ownerRef !== userRef) {
             setOwnerOf(userRef, storyRef);
         }
-        getChildRefsOf(storyRef)
-        .then(childRefs => {
-            childRefs.forEach(childRef => {
-                setOwnerOfTreeOf(userRef, childRef);
-            })
-        })
+        getChildrenOf(storyRef)
+        .then(
+            children => {
+                children.forEach(childRef => {
+                    setOwnerOfTreeOf(userRef, childRef);
+                })
+            },
+            error => {
+                throw `Error setting owner of children: ${error.message}`;
+            }
+        )
     })
 };
 // Make me the owner of the tree of the specified user story.
 // setOwnerOfTreeOf(myRef, mainRootRef);
-
+// getOwnerOf(mainRootShortRef);
+getMyRef();
 /*
 
 // Function to get a reference to a named user.
