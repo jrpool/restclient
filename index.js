@@ -1,6 +1,15 @@
+// Import the module to keep secrets local.
 require('dotenv').config();
+const myName = process.env.RALLY_USERNAME;
+console.log(`The .env file says I am ${myName}`);
+const myRef = '/user';
+// Import the Rally module.
 const rally = require('rally');
-const mainRootOID = '411765582904';
+const queryUtils = rally.util.query;
+// Temporary initialization of the root of the tree.
+const mainRootOID = '435404235956';
+const mainRootRef = `/HierarchicalRequirement/${mainRootOID}`;
+// Initialize the request options.
 const requestOptions = {
     headers: {
         'X-RallyIntegrationName': process.env.RALLYINTEGRATIONNAME,
@@ -8,46 +17,105 @@ const requestOptions = {
         'X-RallyIntegrationVersion': process.env.RALLYINTEGRATIONVERSION
     }
 };
-// Create a Rally REST API instance, using the .env user and pw (not API key).
+/*
+    Create a Rally REST API instance, using the .env user and pw
+    (and not an API key).
+*/
 const restAPI = rally({
     requestOptions
 });
-const queryUtils = rally.util.query;
-console.log(`The .env file says I am ${process.env.RALLY_USERNAME}`);
-const ownTreeFrom = (rootOID, myRef) => {
-    console.log(`(Sub)tree root is ${rootOID}.`);
-    const rootRef = `/hierarchicalrequirement/${rootOID}`;
-    const ownChildren = childrenRef => restAPI.get({
-        ref: childrenRef,
-        fetch: ['ObjectID']
+/*
+    Function to return a reference to the owner of the specified
+    user story.
+*/
+const getOwnerOf = storyRef => {
+    return restAPI.get({
+        ref: storyRef,
+        fetch: ['Owner']
+    })
+    .then(result => result.Object.Owner._ref);
+};
+/*
+    Function to make the specified user the owner of the specified
+    user story.
+*/
+const setOwnerOf = (userRef, storyRef) => restAPI.update({
+    ref: storyRef,
+    data: {Owner: userRef}
+});
+/*
+    Function to return references to the child user stories of
+    the specified user story.
+*/
+const getChildRefsOf = storyRef => {
+    return restAPI.get({
+        ref: storyRef,
+        fetch: ['Children']
     })
     .then(
-        children => {
-            const results = children.Object.Results;
-            const OIDs = results.map(result => result.ObjectID);
-            if (OIDs.length) {
-                console.log(
-                    `Children of ${rootOID} have ObjectIDs: ${
-                        JSON.stringify(OIDs, null, 2)
-                    }`
-                );
-                // Change the owner of the subtree of each child.
-                // Tasks will be left unchanged.
-                OIDs.forEach(OID => {
-                    console.log(`Starting the subtree from ${OID}`);
-                    ownTreeFrom(OID);
-                });
+        childrenRef => restAPI.get({
+            ref: childrenRef,
+            fetch: ['_ref']
+        })
+        .then(
+            children => children.Object.Results.map(result => result._ref),
+            error => {
+                throw `Error getting children: ${error.message}`
             }
-            else {
-                console.log(`${rootOID} has no children.`);
-            }
-        },
+        ),
         error => {
-            console.log(
-                `Error getting ${rootOID} children: ${error.message}`
-            );
+            throw `Error getting child OIDs: ${error.message}.`;
         }
     );
+};
+/*
+    Function to make the specified user the owner of the (sub)tree
+    rooted at the specified user story.
+*/
+const setOwnerOfTreeOf = (userRef, storyRef) => {
+    getOwnerOf(storyRef)
+    .then(ownerRef => {
+        if (ownerRef !== userRef) {
+            setOwnerOf(userRef, storyRef);
+        }
+        getChildRefsOf(storyRef)
+        .then(childRefs => {
+            childRefs.forEach(childRef => {
+                setOwnerOfTreeOf(userRef, childRef);
+            })
+        })
+    })
+};
+// Make me the owner of the tree of the specified user story.
+// setOwnerOfTreeOf(myRef, mainRootRef);
+
+/*
+
+// Function to get a reference to a named user.
+const getUserRef = userName => {
+    return restAPI.query({
+        type: 'user',
+        query: queryUtils.where('UserName', '=', userName)
+    })
+    .then(
+        user => user.Results[0]._ref,
+        error => {
+            throw `Error getting user reference: ${error.message}.`;
+        }
+    );
+};
+
+/*
+    Function to make the specified user the owner of the (sub)tree rooted
+    at the specified user story.
+
+const ownTreeOf = (rootOID, userRef) => {
+    console.log(`(Sub)tree root is ${rootOID}.`);
+    const rootRef = `/hierarchicalrequirement/${rootOID}`;
+    /*
+        Function to make the specified user the owner of the members
+        of the specified collection of children.
+    
     restAPI.get({
         ref: rootRef,
         fetch: ['Owner', 'Children']
@@ -89,7 +157,7 @@ const ownTreeFrom = (rootOID, myRef) => {
         }
     )
 };
-// Make me the owner of the whole tree with the specified root.
+// Make me the owner of the whole tree rooted at the specified user story.
 restAPI.query({
     type: 'user',
     query: queryUtils.where('UserName', '=', process.env.RALLY_USERNAME)
@@ -99,7 +167,7 @@ restAPI.query({
         const myOID = me.Results[0]._ref.replace(/^.+[/]/, '');
         const myRef = `/user/${myOID}`;
         console.log(`myRef is ${myRef}.`);
-        ownTreeFrom(mainRootOID, myRef);
+        ownTreeOf(mainRootOID, myRef);
     },
     error => {
         console.log(`Error getting me: ${error.message}`);
