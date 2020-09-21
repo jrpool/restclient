@@ -7,7 +7,7 @@ const rally = require('rally');
 const queryUtils = rally.util.query;
 // Temporary initialization of the root of the tree.
 const mainRootOID = '435404235956';
-const mainRootShortRef = `/HierarchicalRequirement/${mainRootOID}`;
+const mainRootRef = `/HierarchicalRequirement/${mainRootOID}`;
 // Initialize the request options.
 const requestOptions = {
     headers: {
@@ -24,32 +24,19 @@ const restAPI = rally({
     requestOptions
 });
 // Function to return my ref.
-const getMyRef = () => {
+const getMe = () => {
     return restAPI.query({
         type: 'user',
         query: queryUtils.where('UserName', '=', myName)
     })
-    .then(me => {
-        const myRef = me.Results[0]._ref;
-        console.log(`My ref is ${myRef}.`);
-        return myRef;
-    })
-    .catch(error => {
-        console.log(error.message);
-    });
-};
-const badGetMyRef = () => {
-    return restAPI.get({
-        ref: myShortRef
-    })
     .then(
         me => {
-            const myRef = me._ref;
-            console.log(`My ref is ${myRef}`);
+            const myRef = me.Results[0]._ref;
+            console.log(`My ref is ${myRef}.`);
             return myRef;
         },
         error => {
-            throw `Error getting my ref: ${error.message}`;
+            console.log(error.message);
         }
     );
 };
@@ -64,12 +51,19 @@ const getOwnerOf = storyRef => {
     })
     .then(
         result => {
-            const ownerRef = result.Object.Owner._ref;
-            console.log(`The owner’s ref is ${ownerRef}`);
-            return ownerRef;
+            const owner = result.Object.Owner;
+            if (owner) {
+                const ownerRef = owner._ref;
+                console.log(`The owner of\n${storyRef}\nis ${ownerRef}.`);
+                return ownerRef;
+            }
+            else {
+                console.log(`${storyRef} has no owner.`);
+                return '';
+            }
         },
         error => {
-            throw `Error getting user story’s owner: ${error.message}`;
+            console.log(`Error getting user story’s owner: ${error.message}.`);
         }
     );
 };
@@ -77,37 +71,36 @@ const getOwnerOf = storyRef => {
     Function to make the specified user the owner of the specified
     user story.
 */
-const setOwnerOf = (userRef, storyRef) => restAPI.update({
-    ref: storyRef,
-    data: {Owner: userRef}
-});
+const setOwnerOf = (userRef, storyRef) => {
+    restAPI.update({
+        ref: storyRef,
+        data: {Owner: userRef}
+    });
+    console.log(`Changing owner of\n${storyRef}\nto\n${userRef}.`);
+};
 /*
     Function to return references to the child user stories of
     the specified user story.
 */
 const getChildrenOf = storyRef => {
     return restAPI.get({
-        ref: storyRef,
-        fetch: ['Children']
+        ref: `${storyRef}/Children`,
+        fetch: ['_ref']
     })
     .then(
         childrenRef => {
-            restAPI.get({
-                ref: childrenRef,
-                fetch: ['_ref']
-            })
-            .then(
-                children => children.Object.Results.map(result => result._ref),
-                error => {
-                    throw `Error getting children: ${error.message}`
-                }
-            ),
-            error => {
-                throw `Error getting child OIDs: ${error.message}.`;
-            }
+            const childRefs = childrenRef.Object.Results.map(
+                result => result._ref
+            );
+            console.log(
+                `Children of\n${storyRef}\nare:\n${
+                    JSON.stringify(childRefs, null, 2)
+                }`
+            );
+            return childRefs;
         },
         error => {
-            throw `Error getting ref of children: ${error.message}`;
+            console.log(`Error getting children: ${error.message}.`);
         }
     );
 };
@@ -117,27 +110,38 @@ const getChildrenOf = storyRef => {
 */
 const setOwnerOfTreeOf = (userRef, storyRef) => {
     getOwnerOf(storyRef)
-    .then(ownerRef => {
-        if (ownerRef !== userRef) {
-            setOwnerOf(userRef, storyRef);
-        }
-        getChildrenOf(storyRef)
-        .then(
-            children => {
-                children.forEach(childRef => {
-                    setOwnerOfTreeOf(userRef, childRef);
-                })
-            },
-            error => {
-                throw `Error setting owner of children: ${error.message}`;
+    .then(
+        ownerRef => {
+            if (ownerRef !== userRef) {
+                setOwnerOf(userRef, storyRef);
             }
-        )
-    })
+            else {
+                console.log(`I already own\n${storyRef}.`);
+            }
+            getChildrenOf(storyRef)
+            .then(
+                children => {
+                    children.forEach(childRef => {
+                        setOwnerOfTreeOf(userRef, childRef);
+                    })
+                },
+                error => {
+                    throw `Error setting owner of children: ${error.message}.`;
+                }
+            )
+        },
+        error => {
+            console.log(`Error getting root owner: ${error.message}.`);
+        }
+    )
 };
 // Make me the owner of the tree of the specified user story.
 // setOwnerOfTreeOf(myRef, mainRootRef);
 // getOwnerOf(mainRootShortRef);
-getMyRef();
+getMe()
+.then(me => {
+    setOwnerOfTreeOf(me, mainRootRef)
+});
 /*
 
 // Function to get a reference to a named user.
